@@ -1,1 +1,31 @@
 @import "tailwindcss";
+
+/* 지마켓 산스 폰트 정의 */
+@font-face {
+    font-family: 'GmarketSans';
+    src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2001@1.1/GmarketSansLight.woff') format('woff');
+    font-weight: 300;
+    font-style: normal;
+}
+@font-face {
+    font-family: 'GmarketSans';
+    src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2001@1.1/GmarketSansMedium.woff') format('woff');
+    font-weight: 500;
+    font-style: normal;
+}
+@font-face {
+    font-family: 'GmarketSans';
+    src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2001@1.1/GmarketSansBold.woff') format('woff');
+    font-weight: 700;
+    font-style: normal;
+}
+
+/* Tailwind 기본 폰트를 지마켓 산스로 변경 */
+@theme {
+  --font-sans: 'GmarketSans', sans-serif;
+}
+
+/* 전체 적용 강제 */
+body {
+  font-family: 'GmarketSans', sans-serif;
+}
