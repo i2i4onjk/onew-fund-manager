@@ -4,14 +4,14 @@ import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc
 import { LayoutDashboard, BarChart3, CreditCard, Wallet, Plus, Trash2, Edit2, Download, Clock } from 'lucide-react';
 
 /**
- * 📊 모금 공구 현황 관리 시스템 (v3.2 최종본)
+ * 📊 모금 공구 현황 관리 시스템 (v3.5 최종본)
  * - Firebase 연동 (기기 간 데이터 공유)
- * - 정산 내역 오름차순 (과거 내역이 위로)
- * - 시간 다이얼 선택 (시/분/초)
- * - 그래프 탭: 금액 숨김, 흰색 라벨, "투표 마감까지" 문구 적용
+ * - [수정] 원그래프 라벨: 파이 크기와 상관없이 글씨 크기를 항상 동일하게 고정 (0.09)
+ * - [유지] 엑셀 다운로드: 한 파일 내 2개 시트(원화/PayPal) 통합 저장
+ * - [유지] 디자인: Gmarket Sans 폰트 및 세부 레이아웃 적용
  */
 
-// 파이어베이스 설정
+// 파이어베이스 설정 (사용자 제공 값 적용)
 const firebaseConfig = {
   apiKey: "AIzaSyAAsSQu0e-XiMUe4SwgTkGUCI9iCBw3c_s",
   authDomain: "my-fund-app-d8dd2.firebaseapp.com",
@@ -85,7 +85,6 @@ export default function FundraisingApp() {
   const [transactions, setTransactions] = useState([]);
   const [editingId, setEditingId] = useState(null); 
 
-  // 입력 폼
   const [inputDate, setInputDate] = useState(new Date().toISOString().split('T')[0]);
   const [hour, setHour] = useState('00');
   const [minute, setMinute] = useState('00');
@@ -97,12 +96,10 @@ export default function FundraisingApp() {
   const minutes = genTimeOpts(60);
   const seconds = genTimeOpts(60);
 
-  // 데이터 로드 (JS 내부 정렬로 인덱스 에러 방지)
   useEffect(() => {
     const q = collection(db, "transactions");
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const txData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-      // 오름차순 정렬 (과거 -> 최신)
       txData.sort((a, b) => {
         if (a.date !== b.date) return a.date.localeCompare(b.date);
         return a.time.localeCompare(b.time);
@@ -166,7 +163,6 @@ export default function FundraisingApp() {
     setActiveTab(t.type === 'PayPal' ? 'paypal' : 'bank');
   };
 
-  // 통계
   const stats = useMemo(() => {
     const weekTxs = transactions.filter(t => t.week === currentWeek);
     const optionSums = {};
@@ -195,7 +191,37 @@ export default function FundraisingApp() {
     return { weekTotal, validTotal, invalidSum, chartData, cumulativeTotal, goalPercent };
   }, [transactions, currentWeek]);
 
-  // D-Day
+  // 엑셀 다운로드 (단일 파일 내 2개 시트 분리 저장)
+  const downloadExcel = () => {
+    if (typeof XLSX === 'undefined') {
+      alert("엑셀 라이브러리가 로드되지 않았습니다. index.html 설정을 확인해 주세요.");
+      return;
+    }
+
+    const formatData = (type) => transactions
+      .filter(t => t.type === type)
+      .map(t => ({
+        "날짜": t.date,
+        "시간": t.time,
+        "입금자명": t.name,
+        "금액(원)": t.amount,
+        "주차": t.week > 0 ? `${t.week}주차` : "범위외",
+        "분류": t.option
+      }));
+
+    const bankData = formatData('계좌이체');
+    const paypalData = formatData('PayPal');
+
+    const wb = XLSX.utils.book_new();
+    const wsBank = XLSX.utils.json_to_sheet(bankData);
+    const wsPaypal = XLSX.utils.json_to_sheet(paypalData);
+
+    XLSX.utils.book_append_sheet(wb, wsBank, "원화 입금(계좌)");
+    XLSX.utils.book_append_sheet(wb, wsPaypal, "PayPal");
+
+    XLSX.writeFile(wb, `온유_모금정산_통합본_${new Date().toISOString().slice(0,10)}.xlsx`);
+  };
+
   const dDayText = useMemo(() => {
     const config = WEEKLY_CONFIG[currentWeek];
     const endDate = new Date(config.end + "T23:59:59");
@@ -207,6 +233,7 @@ export default function FundraisingApp() {
 
   const isGraphOnly = activeTab === 'graph';
 
+  // [수정] 원그래프 라벨: 크기에 상관없이 항상 동일한 폰트 사이즈 적용
   const renderPieChart = () => {
     let acc = 0;
     return stats.chartData.map((item, idx) => {
@@ -219,17 +246,25 @@ export default function FundraisingApp() {
       const largeArc = pct > 50 ? 1 : 0;
       const pathData = `M ${x1} ${y1} A 1 1 0 ${largeArc} 1 ${x2} ${y2} L 0 0`;
       const midAngle = startAngle + (endAngle - startAngle) / 2;
-      const labelX = Math.cos(midAngle) * 0.7; const labelY = Math.sin(midAngle) * 0.7;
+      const labelX = Math.cos(midAngle) * 0.72; const labelY = Math.sin(midAngle) * 0.72;
       acc += pct / 100;
 
       return (
         <g key={idx}>
           <path d={pathData} fill={item.color} stroke="white" strokeWidth="0.02" />
-          {pct > 5 && (
-            <text x={labelX} y={labelY} fill="#ffffff" fontSize="0.1" fontWeight="bold" textAnchor="middle" dominantBaseline="middle" transform={`rotate(90 ${labelX} ${labelY})`} style={{ textShadow: "0px 1px 2px rgba(0,0,0,0.2)" }}>
-              {item.name}
-            </text>
-          )}
+          {/* fontSize를 0.09로 고정하여 항상 동일한 크기로 표시 (칸을 넘어가더라도 표시됨) */}
+          <text 
+            x={labelX} y={labelY} 
+            fill="#ffffff" 
+            fontSize="0.09" 
+            fontWeight="bold" 
+            textAnchor="middle" 
+            dominantBaseline="middle" 
+            transform={`rotate(90 ${labelX} ${labelY})`} 
+            style={{ textShadow: "0px 1px 2px rgba(0,0,0,0.5)", pointerEvents: 'none' }}
+          >
+            {item.name}
+          </text>
         </g>
       );
     });
@@ -242,18 +277,26 @@ export default function FundraisingApp() {
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center py-0 sm:py-10 font-sans text-gray-800">
+      <style>{`
+        @font-face { font-family: 'GmarketSans'; src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2001@1.1/GmarketSansMedium.woff') format('woff'); font-weight: 500; }
+        @font-face { font-family: 'GmarketSans'; src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2001@1.1/GmarketSansBold.woff') format('woff'); font-weight: 700; }
+        body { font-family: 'GmarketSans', sans-serif !important; }
+      `}</style>
+
       <div className="w-full max-w-md bg-white min-h-screen sm:min-h-[850px] sm:rounded-[3rem] shadow-2xl overflow-hidden flex flex-col border border-gray-100">
         
+        {/* 상단 탭 */}
         <div className="px-6 pt-6 pb-2 bg-white sticky top-0 z-30 border-b border-gray-100">
           <h1 className="text-center text-lg font-black text-[#86A5DC] tracking-widest mb-4 uppercase">Onew Fund Manager</h1>
           <div className="flex bg-gray-100 p-1 rounded-2xl mb-2">
             <button onClick={() => setActiveTab('dashboard')} className={`flex-1 py-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition-all ${activeTab === 'dashboard' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-400'}`}><LayoutDashboard size={14} /> 현황판</button>
-            <button onClick={() => setActiveTab('graph')} className={`flex-1 py-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition-all ${activeTab === 'graph' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-400'}`}><BarChart3 size={14} /> 그래프</button>
-            <button onClick={() => setActiveTab('bank')} className={`flex-1 py-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition-all ${activeTab === 'bank' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-400'}`}><CreditCard size={14} /> 원화</button>
-            <button onClick={() => setActiveTab('paypal')} className={`flex-1 py-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition-all ${activeTab === 'paypal' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-400'}`}><Wallet size={14} /> PayPal</button>
+            <button onClick={() => setActiveTab('graph')} className={`flex-1 min-w-[60px] py-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition-all ${activeTab === 'graph' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-400'}`}><BarChart3 size={14} /> 그래프</button>
+            <button onClick={() => setActiveTab('bank')} className={`flex-1 min-w-[60px] py-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition-all ${activeTab === 'bank' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-400'}`}><CreditCard size={14} /> 원화</button>
+            <button onClick={() => setActiveTab('paypal')} className={`flex-1 min-w-[60px] py-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition-all ${activeTab === 'paypal' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-400'}`}><Wallet size={14} /> PayPal</button>
           </div>
         </div>
 
+        {/* --- 현황판 / 그래프 --- */}
         {(activeTab === 'dashboard' || activeTab === 'graph') && (
           <div className="flex-1 px-6 pb-10 overflow-y-auto">
             <div className="flex justify-between items-center my-4 overflow-x-auto">
@@ -297,9 +340,8 @@ export default function FundraisingApp() {
                 ))}
               </div>
 
-              {/* 무효표 관련 안내 문구 */}
               {isGraphOnly ? (
-                <div className="text-right text-[9px] text-gray-400 mb-3 leading-tight opacity-80">
+                <div className="text-right text-[9px] text-gray-400 mb-3 leading-tight opacity-80 font-medium">
                   * 성함 등 항목 분류가 불가능한 무효표는<br/>투표 집계에서 제외됩니다.
                 </div>
               ) : (
@@ -320,6 +362,7 @@ export default function FundraisingApp() {
           </div>
         )}
 
+        {/* --- 입금 내역 입력 / 리스트 (원화/PayPal) --- */}
         {(activeTab === 'bank' || activeTab === 'paypal') && (
           <div className="flex-1 px-4 pb-4 overflow-hidden flex flex-col">
             <form onSubmit={handleSubmit} className={`p-4 rounded-2xl mb-4 shrink-0 border transition-colors ${activeTab === 'paypal' ? 'bg-blue-50 border-blue-100' : 'bg-gray-50 border-gray-200'} ${editingId ? 'ring-2 ring-[#D5A2A1]' : ''}`}>
@@ -354,19 +397,34 @@ export default function FundraisingApp() {
 
             <div className="flex-1 overflow-auto border border-gray-100 rounded-xl">
               <table className="w-full text-left text-xs">
-                <thead className="bg-gray-100 text-gray-500 font-bold sticky top-0 z-10"><tr><th className="p-3">날짜/시간</th><th className="p-3">입금자</th><th className="p-3">금액</th><th className="p-3">관리</th></tr></thead>
+                <thead className="bg-gray-100 text-gray-500 font-bold sticky top-0 z-10"><tr><th className="p-3">날짜/시간</th><th className="p-3">입금자</th><th className="p-3">금액</th><th className="p-3 text-center">관리</th></tr></thead>
                 <tbody className="divide-y divide-gray-50">
                   {currentList.length > 0 ? currentList.map((t) => (
                     <tr key={t.id} className={`hover:bg-gray-50/50 ${editingId === t.id ? 'bg-[#D5A2A1]/10' : ''}`}>
                       <td className="p-3 text-gray-400"><div className="font-bold">{t.date.slice(5)}</div><div className="text-[9px]">{t.time}</div></td>
                       <td className="p-3 font-medium text-gray-700">{t.name}<div className="text-[9px] text-[#86A5DC]">{t.option}</div></td>
                       <td className="p-3 text-gray-900">{formatNum(t.amount)}</td>
-                      <td className="p-3 flex gap-2"><button onClick={() => handleEditClick(t)} className="text-gray-300 hover:text-[#86A5DC]"><Edit2 size={14} /></button><button onClick={() => handleDelete(t.id)} className="text-gray-300 hover:text-red-400"><Trash2 size={14} /></button></td>
+                      <td className="p-3 flex justify-center gap-2 items-center">
+                        <button onClick={() => handleEditClick(t)} className="text-gray-300 hover:text-[#86A5DC]"><Edit2 size={14} /></button>
+                        <button onClick={() => handleDelete(t.id)} className="text-gray-300 hover:text-red-400"><Trash2 size={14} /></button>
+                      </td>
                     </tr>
-                  )) : <tr><td colSpan="4" className="p-10 text-center text-gray-300">내역 없음</td></tr>}
+                  )) : <tr><td colSpan="4" className="p-10 text-center text-gray-300 font-bold">내역 없음</td></tr>}
                 </tbody>
               </table>
             </div>
+
+            {/* 원화 탭 하단 엑셀 다운로드 버튼 */}
+            {activeTab === 'bank' && (
+              <div className="mt-4 flex justify-end">
+                <button 
+                  onClick={downloadExcel}
+                  className="flex items-center gap-2 bg-gray-800 text-white px-4 py-2.5 rounded-xl text-xs font-bold hover:bg-black transition-all shadow-sm"
+                >
+                  <Download size={14} /> 통합 정산 엑셀(.xlsx) 저장
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
