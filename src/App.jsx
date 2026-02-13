@@ -297,7 +297,14 @@ export default function FundraisingApp() {
                 ))}
               </div>
 
-              {!isGraphOnly && <div className="text-right text-[10px] text-gray-400 mb-3">* 무효표/기타: {formatNum(stats.invalidSum)}원 (집계 제외)</div>}
+              {/* 무효표 관련 안내 문구 */}
+              {isGraphOnly ? (
+                <div className="text-right text-[9px] text-gray-400 mb-3 leading-tight opacity-80">
+                  * 성함 등 항목 분류가 불가능한 무효표는<br/>투표 집계에서 제외됩니다.
+                </div>
+              ) : (
+                <div className="text-right text-[10px] text-gray-400 mb-3">* 무효표/기타: {formatNum(stats.invalidSum)}원 (집계 제외)</div>
+              )}
 
               <div className="border-t-2 border-dashed border-gray-100 pt-2">
                 <div className="flex justify-between items-end mb-2">
