@@ -32,11 +32,11 @@ const WEEKLY_CONFIG = {
     question: "Q. 온유와 닮은 동물은?",
     start: "2026-02-13", end: "2026-02-19",
     options: [
-      { name: "토끼", keywords: ["토끼", "1"] },
-      { name: "고양이", keywords: ["고양이", "2"] },
-      { name: "강아지", keywords: ["강아지", "3"] },
+      { name: "토끼", keywords: ["토끼", "토","1"] },
+      { name: "고양이", keywords: ["고양이", "냥", "2"] },
+      { name: "강아지", keywords: ["강아지", "멍", "3"] },
       { name: "족제비", keywords: ["족제비", "4"] },
-      { name: "오목눈이", keywords: ["오목눈이", "5"] }
+      { name: "오목눈이", keywords: ["오목눈이", "오목", "5"] }
     ]
   },
   2: {
@@ -44,8 +44,8 @@ const WEEKLY_CONFIG = {
     question: "Q. 온유는 온둡 vs 냉둡?!",
     start: "2026-02-20", end: "2026-02-26",
     options: [
-      { name: "온둡", keywords: ["온둡", "1"] },
-      { name: "냉둡", keywords: ["냉둡", "2"] }
+      { name: "온둡", keywords: ["온", "1"] },
+      { name: "냉둡", keywords: ["냉", "2"] }
     ]
   },
   3: {
@@ -95,6 +95,10 @@ export default function FundraisingApp() {
   const hours = genTimeOpts(24);
   const minutes = genTimeOpts(60);
   const seconds = genTimeOpts(60);
+
+  useEffect(() => {
+    document.title = "TOUGH LOVE 모금현황";
+  }, []);
 
   useEffect(() => {
     const q = collection(db, "transactions");
