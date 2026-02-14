@@ -4,14 +4,15 @@ import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc
 import { LayoutDashboard, BarChart3, CreditCard, Wallet, Plus, Trash2, Edit2, Download, Clock } from 'lucide-react';
 
 /**
- * 📊 모금 공구 현황 관리 시스템 (v3.5 최종본)
- * - Firebase 연동 (기기 간 데이터 공유)
- * - [수정] 원그래프 라벨: 파이 크기와 상관없이 글씨 크기를 항상 동일하게 고정 (0.09)
- * - [유지] 엑셀 다운로드: 한 파일 내 2개 시트(원화/PayPal) 통합 저장
- * - [유지] 디자인: Gmarket Sans 폰트 및 세부 레이아웃 적용
+ * 📊 모금 공구 현황 관리 시스템 (v3.8 최종 수정)
+ * - [복구] 원그래프 라벨: 5% 미만인 경우 숨김 처리 (pct > 5 조건 부활)
+ * - [복구] 범례 디자인: 이름(좌) - 퍼센트(우) 가로 정렬로 복구
+ * - Firebase 연동, 엑셀 다운로드, 시간 입력 등 기능 유지
  */
 
-// 파이어베이스 설정 (사용자 제공 값 적용)
+// ------------------------------------------------------------------
+// [🔥 중요] 파이어베이스 설정값 입력
+// ------------------------------------------------------------------
 const firebaseConfig = {
   apiKey: "AIzaSyAAsSQu0e-XiMUe4SwgTkGUCI9iCBw3c_s",
   authDomain: "my-fund-app-d8dd2.firebaseapp.com",
@@ -21,8 +22,14 @@ const firebaseConfig = {
   appId: "1:213521376392:web:b3b1e838073cd61db86b3d"
 };
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+// Firebase 초기화
+let db;
+try {
+  const app = initializeApp(firebaseConfig);
+  db = getFirestore(app);
+} catch (e) {
+  console.warn("Firebase 설정이 완료되지 않았습니다.");
+}
 
 const GOAL_AMOUNT = 10000000; 
 
@@ -101,6 +108,7 @@ export default function FundraisingApp() {
   }, []);
 
   useEffect(() => {
+    if (!db) return;
     const q = collection(db, "transactions");
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const txData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
@@ -156,6 +164,7 @@ export default function FundraisingApp() {
   };
 
   const handleDelete = async (id) => {
+    if (!db) return;
     if(window.confirm("삭제하시겠습니까?")) await deleteDoc(doc(db, "transactions", id));
   };
 
@@ -167,6 +176,7 @@ export default function FundraisingApp() {
     setActiveTab(t.type === 'PayPal' ? 'paypal' : 'bank');
   };
 
+  // 통계 계산
   const stats = useMemo(() => {
     const weekTxs = transactions.filter(t => t.week === currentWeek);
     const optionSums = {};
@@ -195,12 +205,14 @@ export default function FundraisingApp() {
     return { weekTotal, validTotal, invalidSum, chartData, cumulativeTotal, goalPercent };
   }, [transactions, currentWeek]);
 
-  // 엑셀 다운로드 (단일 파일 내 2개 시트 분리 저장)
+  // 엑셀 다운로드 (라이브러리 필요)
   const downloadExcel = () => {
-    if (typeof XLSX === 'undefined') {
+    // XLSX 라이브러리가 로드되었는지 확인
+    if (typeof window.XLSX === 'undefined') {
       alert("엑셀 라이브러리가 로드되지 않았습니다. index.html 설정을 확인해 주세요.");
       return;
     }
+    const XLSX = window.XLSX;
 
     const formatData = (type) => transactions
       .filter(t => t.type === type)
@@ -237,7 +249,6 @@ export default function FundraisingApp() {
 
   const isGraphOnly = activeTab === 'graph';
 
-  // [수정] 원그래프 라벨: 크기에 상관없이 항상 동일한 폰트 사이즈 적용
   const renderPieChart = () => {
     let acc = 0;
     return stats.chartData.map((item, idx) => {
@@ -253,22 +264,26 @@ export default function FundraisingApp() {
       const labelX = Math.cos(midAngle) * 0.72; const labelY = Math.sin(midAngle) * 0.72;
       acc += pct / 100;
 
+      // [복구] 5% 이상일 때만 이름 표시 (너무 좁은 영역 숨김)
+      const showLabel = pct > 5;
+
       return (
         <g key={idx}>
           <path d={pathData} fill={item.color} stroke="white" strokeWidth="0.02" />
-          {/* fontSize를 0.09로 고정하여 항상 동일한 크기로 표시 (칸을 넘어가더라도 표시됨) */}
-          <text 
-            x={labelX} y={labelY} 
-            fill="#ffffff" 
-            fontSize="0.09" 
-            fontWeight="bold" 
-            textAnchor="middle" 
-            dominantBaseline="middle" 
-            transform={`rotate(90 ${labelX} ${labelY})`} 
-            style={{ textShadow: "0px 1px 2px rgba(0,0,0,0.5)", pointerEvents: 'none' }}
-          >
-            {item.name}
-          </text>
+          {showLabel && (
+            <text 
+              x={labelX} y={labelY} 
+              fill="#ffffff" 
+              fontSize="0.09" 
+              fontWeight="bold" 
+              textAnchor="middle" 
+              dominantBaseline="middle" 
+              transform={`rotate(90 ${labelX} ${labelY})`} 
+              style={{ textShadow: "0px 1px 2px rgba(0,0,0,0.5)", pointerEvents: 'none' }}
+            >
+              {item.name}
+            </text>
+          )}
         </g>
       );
     });
@@ -291,9 +306,9 @@ export default function FundraisingApp() {
         
         {/* 상단 탭 */}
         <div className="px-6 pt-6 pb-2 bg-white sticky top-0 z-30 border-b border-gray-100">
-          <h1 className="text-center text-lg font-black text-[#86A5DC] tracking-widest mb-4 uppercase">TOUGH LOVE 모금현황</h1>
+          <h1 className="text-center text-lg font-black text-[#86A5DC] tracking-widest mb-4 uppercase">Onew Fund Manager</h1>
           <div className="flex bg-gray-100 p-1 rounded-2xl mb-2">
-            <button onClick={() => setActiveTab('dashboard')} className={`flex-1 py-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition-all ${activeTab === 'dashboard' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-400'}`}><LayoutDashboard size={14} /> 현황판</button>
+            <button onClick={() => setActiveTab('dashboard')} className={`flex-1 min-w-[60px] py-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition-all ${activeTab === 'dashboard' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-400'}`}><LayoutDashboard size={14} /> 현황판</button>
             <button onClick={() => setActiveTab('graph')} className={`flex-1 min-w-[60px] py-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition-all ${activeTab === 'graph' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-400'}`}><BarChart3 size={14} /> 그래프</button>
             <button onClick={() => setActiveTab('bank')} className={`flex-1 min-w-[60px] py-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition-all ${activeTab === 'bank' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-400'}`}><CreditCard size={14} /> 원화</button>
             <button onClick={() => setActiveTab('paypal')} className={`flex-1 min-w-[60px] py-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition-all ${activeTab === 'paypal' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-400'}`}><Wallet size={14} /> PayPal</button>
@@ -363,6 +378,12 @@ export default function FundraisingApp() {
                 {!isGraphOnly && <div className="flex justify-between mt-1 text-[9px] font-bold text-gray-400"><span>누적 {formatNum(stats.cumulativeTotal)}원</span><span>목표 1,000만원</span></div>}
               </div>
             </div>
+            
+            <div className="text-right mb-4">
+               <button onClick={downloadExcel} className="inline-flex items-center gap-1.5 text-[10px] font-bold text-gray-400 bg-gray-100 px-3 py-1.5 rounded-lg hover:bg-gray-200">
+                  <Download size={12} /> 통합 내역 저장 (CSV)
+                </button>
+            </div>
           </div>
         )}
 
@@ -382,11 +403,11 @@ export default function FundraisingApp() {
                 <div className="flex-1">
                     <label className="text-[9px] text-gray-400 block mb-1">시간 (시:분:초)</label>
                     <div className="flex gap-1">
-                        <select value={hour} onChange={(e) => setHour(e.target.value)} className="flex-1 text-xs py-1.5 px-0 text-center rounded-lg border border-white bg-white h-[34px]">{hours.map(h => <option key={h} value={h}>{h}</option>)}</select>
+                        <select value={hour} onChange={(e) => setHour(e.target.value)} className="flex-1 text-xs py-1.5 px-0 text-center rounded-lg border border-white focus:outline-none focus:border-[#86A5DC] bg-white appearance-none h-[34px]">{hours.map(h => <option key={h} value={h}>{h}시</option>)}</select>
                         <span className="self-center text-gray-400 text-[10px]">:</span>
-                        <select value={minute} onChange={(e) => setMinute(e.target.value)} className="flex-1 text-xs py-1.5 px-0 text-center rounded-lg border border-white bg-white h-[34px]">{minutes.map(m => <option key={m} value={m}>{m}</option>)}</select>
+                        <select value={minute} onChange={(e) => setMinute(e.target.value)} className="flex-1 text-xs py-1.5 px-0 text-center rounded-lg border border-white focus:outline-none focus:border-[#86A5DC] bg-white appearance-none h-[34px]">{minutes.map(m => <option key={m} value={m}>{m}분</option>)}</select>
                         <span className="self-center text-gray-400 text-[10px]">:</span>
-                        <select value={second} onChange={(e) => setSecond(e.target.value)} className="flex-1 text-xs py-1.5 px-0 text-center rounded-lg border border-white bg-white h-[34px]">{seconds.map(s => <option key={s} value={s}>{s}</option>)}</select>
+                        <select value={second} onChange={(e) => setSecond(e.target.value)} className="flex-1 text-xs py-1.5 px-0 text-center rounded-lg border border-white focus:outline-none focus:border-[#86A5DC] bg-white appearance-none h-[34px]">{seconds.map(s => <option key={s} value={s}>{s}초</option>)}</select>
                     </div>
                 </div>
               </div>
@@ -408,7 +429,7 @@ export default function FundraisingApp() {
                       <td className="p-3 text-gray-400"><div className="font-bold">{t.date.slice(5)}</div><div className="text-[9px]">{t.time}</div></td>
                       <td className="p-3 font-medium text-gray-700">{t.name}<div className="text-[9px] text-[#86A5DC]">{t.option}</div></td>
                       <td className="p-3 text-gray-900">{formatNum(t.amount)}</td>
-                      <td className="p-3 flex justify-center gap-2 items-center">
+                      <td className="p-3 text-center flex justify-center gap-2">
                         <button onClick={() => handleEditClick(t)} className="text-gray-300 hover:text-[#86A5DC]"><Edit2 size={14} /></button>
                         <button onClick={() => handleDelete(t.id)} className="text-gray-300 hover:text-red-400"><Trash2 size={14} /></button>
                       </td>
@@ -431,6 +452,7 @@ export default function FundraisingApp() {
             )}
           </div>
         )}
+
       </div>
     </div>
   );
