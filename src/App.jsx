@@ -306,7 +306,7 @@ export default function FundraisingApp() {
         
         {/* 상단 탭 */}
         <div className="px-6 pt-6 pb-2 bg-white sticky top-0 z-30 border-b border-gray-100">
-          <h1 className="text-center text-lg font-black text-[#86A5DC] tracking-widest mb-4 uppercase">Onew Fund Manager</h1>
+          <h1 className="text-center text-lg font-black text-[#86A5DC] tracking-widest mb-4 uppercase">TOUGH LOVE 모금현황</h1>
           <div className="flex bg-gray-100 p-1 rounded-2xl mb-2">
             <button onClick={() => setActiveTab('dashboard')} className={`flex-1 min-w-[60px] py-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition-all ${activeTab === 'dashboard' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-400'}`}><LayoutDashboard size={14} /> 현황판</button>
             <button onClick={() => setActiveTab('graph')} className={`flex-1 min-w-[60px] py-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition-all ${activeTab === 'graph' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-400'}`}><BarChart3 size={14} /> 그래프</button>
