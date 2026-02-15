@@ -499,7 +499,7 @@ export default function FundraisingApp() {
                       <td className="p-3 text-gray-400"><div className="font-bold">{t.date.slice(5)}</div><div className="text-[9px]">{t.time}</div></td>
                       <td className="p-3 font-medium text-gray-700">
                         {t.name}
-                        {t.type === 'PayPal' && <div className="text-[9px] text-gray-400">Memo: {t.memo}</div>}
+                        {t.type === 'PayPal' && <div className="text-[9px] text-gray-400">{t.memo}</div>}
                         <div className="text-[9px] text-[#86A5DC]">{t.option}</div>
                       </td>
                       <td className="p-3 text-gray-900">
