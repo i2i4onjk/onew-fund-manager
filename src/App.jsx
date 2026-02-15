@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, query, orderBy } from "firebase/firestore";
-import { LayoutDashboard, BarChart3, CreditCard, Wallet, Plus, Trash2, Edit2, Download, Clock } from 'lucide-react';
+import { LayoutDashboard, BarChart3, CreditCard, Wallet, Plus, Trash2, Edit2, Download, Clock, DollarSign } from 'lucide-react';
 
 /**
- * 📊 모금 공구 현황 관리 시스템 (v3.8 최종 수정)
- * - [복구] 원그래프 라벨: 5% 미만인 경우 숨김 처리 (pct > 5 조건 부활)
- * - [복구] 범례 디자인: 이름(좌) - 퍼센트(우) 가로 정렬로 복구
- * - Firebase 연동, 엑셀 다운로드, 시간 입력 등 기능 유지
+ * 📊 모금 공구 현황 관리 시스템 (v4.0 PayPal 기능 강화)
+ * - [추가] PayPal 탭: 메모 입력란 추가, 달러($) 입력 시 원화 자동 환산
+ * - [수정] 투표 집계: 계좌(입금자명) vs PayPal(메모) 기준 분리
+ * - [수정] 엑셀: PayPal 시트에 달러/원화/메모 컬럼 분리 저장
  */
 
 // ------------------------------------------------------------------
@@ -22,6 +22,10 @@ const firebaseConfig = {
   appId: "1:213521376392:web:b3b1e838073cd61db86b3d"
 };
 
+// [💰 환율 설정] 1달러당 원화 금액 (필요시 수정하세요)
+const EXCHANGE_RATE = 1450; 
+const GOAL_AMOUNT = 10000000; 
+
 // Firebase 초기화
 let db;
 try {
@@ -30,8 +34,6 @@ try {
 } catch (e) {
   console.warn("Firebase 설정이 완료되지 않았습니다.");
 }
-
-const GOAL_AMOUNT = 10000000; 
 
 const WEEKLY_CONFIG = {
   1: {
@@ -43,7 +45,7 @@ const WEEKLY_CONFIG = {
       { name: "고양이", keywords: ["고양이", "냥", "2"] },
       { name: "강아지", keywords: ["강아지", "멍", "3"] },
       { name: "족제비", keywords: ["족제비", "4"] },
-      { name: "오목눈이", keywords: ["오목눈이", "오목", "5"] }
+      { name: "오목눈이", keywords: ["오목눈이", "오목"] }
     ]
   },
   2: {
@@ -92,12 +94,14 @@ export default function FundraisingApp() {
   const [transactions, setTransactions] = useState([]);
   const [editingId, setEditingId] = useState(null); 
 
+  // 입력 폼 상태
   const [inputDate, setInputDate] = useState(new Date().toISOString().split('T')[0]);
   const [hour, setHour] = useState('00');
   const [minute, setMinute] = useState('00');
   const [second, setSecond] = useState('00');
   const [inputName, setInputName] = useState('');
   const [inputAmount, setInputAmount] = useState('');
+  const [inputMemo, setInputMemo] = useState(''); // [추가] PayPal용 메모
 
   const hours = genTimeOpts(24);
   const minutes = genTimeOpts(60);
@@ -107,11 +111,13 @@ export default function FundraisingApp() {
     document.title = "TOUGH LOVE 모금현황";
   }, []);
 
+  // [DB] 데이터 불러오기
   useEffect(() => {
     if (!db) return;
     const q = collection(db, "transactions");
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const txData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+      // 오름차순 정렬
       txData.sort((a, b) => {
         if (a.date !== b.date) return a.date.localeCompare(b.date);
         return a.time.localeCompare(b.time);
@@ -128,28 +134,46 @@ export default function FundraisingApp() {
     return 0;
   };
 
-  const getOptionByName = (week, nameStr) => {
+  const getOptionByName = (week, text) => {
     if (!WEEKLY_CONFIG[week]) return "범위외";
     for (const opt of WEEKLY_CONFIG[week].options) {
-      if (opt.keywords.some(k => nameStr.includes(k))) return opt.name;
+      if (opt.keywords.some(k => text.includes(k))) return opt.name;
     }
     return "무효표";
   };
 
+  // [DB] 데이터 저장 (로직 수정됨)
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!inputName || !inputAmount || !inputDate) return;
 
-    const amount = parseInt(inputAmount.replace(/[^0-9]/g, ''), 10);
+    const rawAmount = parseFloat(inputAmount); // PayPal은 소수점이 있을 수 있음
     const week = getWeekByDate(inputDate);
-    let option = week > 0 ? getOptionByName(week, inputName) : "범위외";
-
-    const paymentType = activeTab === 'paypal' ? 'PayPal' : '계좌이체';
+    
+    // 탭에 따라 결제 정보 처리
+    const isPayPal = activeTab === 'paypal';
+    const paymentType = isPayPal ? 'PayPal' : '계좌이체';
     const finalTime = `${hour}:${minute}:${second}`;
 
+    // 1. 투표 집계 대상 텍스트 결정 (페이팔은 메모, 계좌는 입금자명)
+    const targetTextForOption = isPayPal ? inputMemo : inputName;
+    let option = week > 0 ? getOptionByName(week, targetTextForOption) : "범위외";
+
+    // 2. 금액 계산 (페이팔은 환율 적용)
+    // originalAmount: 입력한 원본 금액 (원화 또는 달러)
+    // amount: 통계 집계용 원화 환산 금액
+    const convertedAmount = isPayPal ? Math.round(rawAmount * EXCHANGE_RATE) : rawAmount;
+
     const txData = {
-      type: paymentType, date: inputDate, time: finalTime,
-      name: inputName, amount: amount, week: week, option: option
+      type: paymentType,
+      date: inputDate,
+      time: finalTime,
+      name: inputName,
+      memo: isPayPal ? inputMemo : "", // 페이팔만 메모 저장
+      originalAmount: rawAmount,       // 입력한 값 ($ or ₩)
+      amount: convertedAmount,         // 환산된 원화 (통계용)
+      week: week,
+      option: option
     };
 
     try {
@@ -159,7 +183,10 @@ export default function FundraisingApp() {
       } else {
         await addDoc(collection(db, "transactions"), txData);
       }
-      setInputName(''); setInputAmount('');
+      // 초기화
+      setInputName(''); 
+      setInputAmount('');
+      setInputMemo('');
     } catch (err) { alert("저장 실패!"); }
   };
 
@@ -172,11 +199,23 @@ export default function FundraisingApp() {
     setEditingId(t.id); setInputDate(t.date);
     const [h, m, s] = t.time.split(':');
     setHour(h || '00'); setMinute(m || '00'); setSecond(s || '00');
-    setInputName(t.name); setInputAmount(t.amount.toString());
+    setInputName(t.name); 
+    
+    // 수정 시 원래 입력했던 금액(originalAmount)을 불러옴
+    setInputAmount(t.originalAmount ? t.originalAmount.toString() : t.amount.toString());
+    setInputMemo(t.memo || "");
+
     setActiveTab(t.type === 'PayPal' ? 'paypal' : 'bank');
   };
 
-  // 통계 계산
+  const cancelEdit = () => {
+    setEditingId(null);
+    setInputName('');
+    setInputAmount('');
+    setInputMemo('');
+  };
+
+  // 통계 계산 (amount는 항상 원화이므로 기존 로직 유지)
   const stats = useMemo(() => {
     const weekTxs = transactions.filter(t => t.week === currentWeek);
     const optionSums = {};
@@ -184,6 +223,7 @@ export default function FundraisingApp() {
     let invalidSum = 0; let weekTotal = 0;
 
     weekTxs.forEach(t => {
+      // t.amount는 항상 원화 환산액임
       weekTotal += t.amount;
       if (t.option === "무효표") invalidSum += t.amount;
       else if (optionSums[t.option] !== undefined) optionSums[t.option] += t.amount;
@@ -205,17 +245,18 @@ export default function FundraisingApp() {
     return { weekTotal, validTotal, invalidSum, chartData, cumulativeTotal, goalPercent };
   }, [transactions, currentWeek]);
 
-  // 엑셀 다운로드 (라이브러리 필요)
+  // [수정] 엑셀 다운로드 (시트 분리 로직)
   const downloadExcel = () => {
-    // XLSX 라이브러리가 로드되었는지 확인
     if (typeof window.XLSX === 'undefined') {
-      alert("엑셀 라이브러리가 로드되지 않았습니다. index.html 설정을 확인해 주세요.");
+      alert("엑셀 라이브러리 로드 실패. 페이지를 새로고침 해주세요.");
       return;
     }
     const XLSX = window.XLSX;
+    const wb = XLSX.utils.book_new();
 
-    const formatData = (type) => transactions
-      .filter(t => t.type === type)
+    // 1. 원화 시트 데이터
+    const bankData = transactions
+      .filter(t => t.type === '계좌이체')
       .map(t => ({
         "날짜": t.date,
         "시간": t.time,
@@ -224,15 +265,24 @@ export default function FundraisingApp() {
         "주차": t.week > 0 ? `${t.week}주차` : "범위외",
         "분류": t.option
       }));
-
-    const bankData = formatData('계좌이체');
-    const paypalData = formatData('PayPal');
-
-    const wb = XLSX.utils.book_new();
     const wsBank = XLSX.utils.json_to_sheet(bankData);
-    const wsPaypal = XLSX.utils.json_to_sheet(paypalData);
-
     XLSX.utils.book_append_sheet(wb, wsBank, "원화 입금(계좌)");
+
+    // 2. PayPal 시트 데이터
+    const paypalData = transactions
+      .filter(t => t.type === 'PayPal')
+      .map(t => ({
+        "날짜": t.date,
+        "시간": t.time,
+        "입금자명": t.name,
+        "메모(투표)": t.memo,
+        "입금액($)": t.originalAmount,
+        "환산액(원)": t.amount,
+        "적용환율": EXCHANGE_RATE,
+        "주차": t.week > 0 ? `${t.week}주차` : "범위외",
+        "분류": t.option
+      }));
+    const wsPaypal = XLSX.utils.json_to_sheet(paypalData);
     XLSX.utils.book_append_sheet(wb, wsPaypal, "PayPal");
 
     XLSX.writeFile(wb, `온유_모금정산_통합본_${new Date().toISOString().slice(0,10)}.xlsx`);
@@ -264,7 +314,7 @@ export default function FundraisingApp() {
       const labelX = Math.cos(midAngle) * 0.72; const labelY = Math.sin(midAngle) * 0.72;
       acc += pct / 100;
 
-      // [복구] 5% 이상일 때만 이름 표시 (너무 좁은 영역 숨김)
+      // [복구] 5% 이상일 때만 이름 표시
       const showLabel = pct > 5;
 
       return (
@@ -291,7 +341,8 @@ export default function FundraisingApp() {
 
   const currentList = useMemo(() => {
     if (activeTab === 'dashboard' || activeTab === 'graph') return [];
-    return transactions.filter(t => t.type === (activeTab === 'paypal' ? 'PayPal' : '계좌이체'));
+    const type = activeTab === 'paypal' ? 'PayPal' : '계좌이체';
+    return transactions.filter(t => t.type === type);
   }, [activeTab, transactions]);
 
   return (
@@ -361,7 +412,8 @@ export default function FundraisingApp() {
 
               {isGraphOnly ? (
                 <div className="text-right text-[9px] text-gray-400 mb-3 leading-tight opacity-80 font-medium">
-                  * 성함 등 항목 분류가 불가능한 무효표는<br/>투표 집계에서 제외됩니다.
+                  * PayPal 투표액은 고정환율로 계산하여 반영됩니다.<br/>
+                  * 성함 등 항목 분류가 불가능한 무효표는 투표 집계에서 제외됩니다.
                 </div>
               ) : (
                 <div className="text-right text-[10px] text-gray-400 mb-3">* 무효표/기타: {formatNum(stats.invalidSum)}원 (집계 제외)</div>
@@ -379,15 +431,11 @@ export default function FundraisingApp() {
               </div>
             </div>
             
-            <div className="text-right mb-4">
-               <button onClick={downloadExcel} className="inline-flex items-center gap-1.5 text-[10px] font-bold text-gray-400 bg-gray-100 px-3 py-1.5 rounded-lg hover:bg-gray-200">
-                  <Download size={12} /> 통합 내역 저장 (CSV)
-                </button>
-            </div>
+            {/* 엑셀 다운로드는 '원화' 탭으로 이동했습니다 (사용자 요청) */}
           </div>
         )}
 
-        {/* --- 입금 내역 입력 / 리스트 (원화/PayPal) --- */}
+        {/* --- 탭 3 & 4: 입력 폼 (원화/페이팔) --- */}
         {(activeTab === 'bank' || activeTab === 'paypal') && (
           <div className="flex-1 px-4 pb-4 overflow-hidden flex flex-col">
             <form onSubmit={handleSubmit} className={`p-4 rounded-2xl mb-4 shrink-0 border transition-colors ${activeTab === 'paypal' ? 'bg-blue-50 border-blue-100' : 'bg-gray-50 border-gray-200'} ${editingId ? 'ring-2 ring-[#D5A2A1]' : ''}`}>
@@ -403,32 +451,61 @@ export default function FundraisingApp() {
                 <div className="flex-1">
                     <label className="text-[9px] text-gray-400 block mb-1">시간 (시:분:초)</label>
                     <div className="flex gap-1">
-                        <select value={hour} onChange={(e) => setHour(e.target.value)} className="flex-1 text-xs py-1.5 px-0 text-center rounded-lg border border-white focus:outline-none focus:border-[#86A5DC] bg-white appearance-none h-[34px]">{hours.map(h => <option key={h} value={h}>{h}시</option>)}</select>
+                        <select value={hour} onChange={(e) => setHour(e.target.value)} className="flex-1 text-xs py-1.5 px-0 text-center rounded-lg border border-white bg-white h-[34px]">{hours.map(h => <option key={h} value={h}>{h}시</option>)}</select>
                         <span className="self-center text-gray-400 text-[10px]">:</span>
-                        <select value={minute} onChange={(e) => setMinute(e.target.value)} className="flex-1 text-xs py-1.5 px-0 text-center rounded-lg border border-white focus:outline-none focus:border-[#86A5DC] bg-white appearance-none h-[34px]">{minutes.map(m => <option key={m} value={m}>{m}분</option>)}</select>
+                        <select value={minute} onChange={(e) => setMinute(e.target.value)} className="flex-1 text-xs py-1.5 px-0 text-center rounded-lg border border-white bg-white h-[34px]">{minutes.map(m => <option key={m} value={m}>{m}분</option>)}</select>
                         <span className="self-center text-gray-400 text-[10px]">:</span>
-                        <select value={second} onChange={(e) => setSecond(e.target.value)} className="flex-1 text-xs py-1.5 px-0 text-center rounded-lg border border-white focus:outline-none focus:border-[#86A5DC] bg-white appearance-none h-[34px]">{seconds.map(s => <option key={s} value={s}>{s}초</option>)}</select>
+                        <select value={second} onChange={(e) => setSecond(e.target.value)} className="flex-1 text-xs py-1.5 px-0 text-center rounded-lg border border-white bg-white h-[34px]">{seconds.map(s => <option key={s} value={s}>{s}초</option>)}</select>
                     </div>
                 </div>
               </div>
+              
               <div className="mb-2">
-                 <input type="text" required value={inputName} onChange={(e) => setInputName(e.target.value)} placeholder="예: 이진기토끼" className="w-full text-xs p-2 rounded-lg border border-white focus:outline-none focus:border-[#86A5DC] bg-white" />
+                 <label className="text-[9px] text-gray-400 block mb-1">입금자명 {activeTab === 'paypal' && "(영문명)"}</label>
+                 <input type="text" required value={inputName} onChange={(e) => setInputName(e.target.value)} placeholder={activeTab === 'paypal' ? "예: JINKI LEE" : "예: 이진기토끼"} className="w-full text-xs p-2 rounded-lg border border-white focus:outline-none focus:border-[#86A5DC] bg-white" />
               </div>
+
+              {/* [추가] PayPal 탭일 때만 메모 입력칸 표시 */}
+              {activeTab === 'paypal' && (
+                <div className="mb-2">
+                   <label className="text-[9px] text-[#86A5DC] font-bold block mb-1">메모 (투표 키워드 입력)</label>
+                   <input type="text" value={inputMemo} onChange={(e) => setInputMemo(e.target.value)} placeholder="예: Rabbit (이곳의 내용으로 투표 집계됩니다)" className="w-full text-xs p-2 rounded-lg border border-[#86A5DC] focus:outline-none bg-blue-50/50" />
+                </div>
+              )}
+
               <div className="flex gap-2">
-                <input type="text" required value={inputAmount} onChange={(e) => setInputAmount(e.target.value)} placeholder="금액 (원)" className="flex-1 text-xs p-2 rounded-lg border border-white focus:outline-none focus:border-[#86A5DC] bg-white" />
+                <div className="flex-1 relative">
+                   {activeTab === 'paypal' && <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"><DollarSign size={12} /></div>}
+                   <input 
+                      type="text" 
+                      required 
+                      value={inputAmount} 
+                      onChange={(e) => setInputAmount(e.target.value)} 
+                      placeholder={activeTab === 'paypal' ? "금액 (달러)" : "금액 (원)"} 
+                      className={`w-full text-xs p-2 rounded-lg border border-white focus:outline-none focus:border-[#86A5DC] bg-white ${activeTab === 'paypal' ? 'pl-7' : ''}`} 
+                    />
+                </div>
                 <button type="submit" className={`text-white px-4 rounded-lg text-xs font-bold ${editingId ? 'bg-[#D5A2A1]' : 'bg-[#86A5DC]'}`}>{editingId ? '수정' : '추가'}</button>
               </div>
+              {activeTab === 'paypal' && <p className="text-[9px] text-gray-400 mt-2 text-right">* 환율 1$ = {formatNum(EXCHANGE_RATE)}원 자동 적용</p>}
             </form>
 
             <div className="flex-1 overflow-auto border border-gray-100 rounded-xl">
               <table className="w-full text-left text-xs">
-                <thead className="bg-gray-100 text-gray-500 font-bold sticky top-0 z-10"><tr><th className="p-3">날짜/시간</th><th className="p-3">입금자</th><th className="p-3">금액</th><th className="p-3 text-center">관리</th></tr></thead>
+                <thead className="bg-gray-100 text-gray-500 font-bold sticky top-0 z-10"><tr><th className="p-3">날짜/시간</th><th className="p-3">내용</th><th className="p-3">금액</th><th className="p-3 text-center">관리</th></tr></thead>
                 <tbody className="divide-y divide-gray-50">
                   {currentList.length > 0 ? currentList.map((t) => (
                     <tr key={t.id} className={`hover:bg-gray-50/50 ${editingId === t.id ? 'bg-[#D5A2A1]/10' : ''}`}>
                       <td className="p-3 text-gray-400"><div className="font-bold">{t.date.slice(5)}</div><div className="text-[9px]">{t.time}</div></td>
-                      <td className="p-3 font-medium text-gray-700">{t.name}<div className="text-[9px] text-[#86A5DC]">{t.option}</div></td>
-                      <td className="p-3 text-gray-900">{formatNum(t.amount)}</td>
+                      <td className="p-3 font-medium text-gray-700">
+                        {t.name}
+                        {t.type === 'PayPal' && <div className="text-[9px] text-gray-400">Memo: {t.memo}</div>}
+                        <div className="text-[9px] text-[#86A5DC]">{t.option}</div>
+                      </td>
+                      <td className="p-3 text-gray-900">
+                        {formatNum(t.amount)}
+                        {t.type === 'PayPal' && <div className="text-[9px] text-gray-400">(${t.originalAmount})</div>}
+                      </td>
                       <td className="p-3 text-center flex justify-center gap-2">
                         <button onClick={() => handleEditClick(t)} className="text-gray-300 hover:text-[#86A5DC]"><Edit2 size={14} /></button>
                         <button onClick={() => handleDelete(t.id)} className="text-gray-300 hover:text-red-400"><Trash2 size={14} /></button>
@@ -439,7 +516,7 @@ export default function FundraisingApp() {
               </table>
             </div>
 
-            {/* 원화 탭 하단 엑셀 다운로드 버튼 */}
+            {/* 원화 탭 하단 엑셀 다운로드 버튼 (PayPal 탭에서는 안 보임) */}
             {activeTab === 'bank' && (
               <div className="mt-4 flex justify-end">
                 <button 
@@ -452,7 +529,6 @@ export default function FundraisingApp() {
             )}
           </div>
         )}
-
       </div>
     </div>
   );
