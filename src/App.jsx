@@ -42,7 +42,7 @@ const WEEKLY_CONFIG = {
     start: "2026-02-13", end: "2026-02-19",
     options: [
       { name: "토끼", keywords: ["토끼", "토","1"] },
-      { name: "고양이", keywords: ["고양이", "냥", "2"] },
+      { name: "고양이", keywords: ["고양이", "냥", "냐옹", "2"] },
       { name: "강아지", keywords: ["강아지", "멍", "3"] },
       { name: "족제비", keywords: ["족제비", "4"] },
       { name: "오목눈이", keywords: ["오목눈이", "오목"] }
