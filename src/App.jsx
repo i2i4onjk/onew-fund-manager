@@ -67,7 +67,7 @@ const WEEKLY_CONFIG = {
       { name: "#❤️", keywords: ["빨", "3"] },
       { name: "#🩷", keywords: ["핑", "분홍", "4"] },
       { name: "#🤎", keywords: ["갈", "브라운", "5"] },
-      { name: "#💚", keywords: ["초", "그린", "6"] }
+      { name: "#💚", keywords: ["초", "그린", "green", "6"] }
     ]
   },
   4: {
