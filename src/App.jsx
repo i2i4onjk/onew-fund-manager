@@ -63,11 +63,11 @@ const WEEKLY_CONFIG = {
     start: "2026-02-27", end: "2026-03-05",
     options: [
       { name: "#🖤", keywords: ["검", "1"] },
-      { name: "#💙", keywords: ["파", "2"] },
+      { name: "#💙", keywords: ["파", "청", "2"] },
       { name: "#❤️", keywords: ["빨", "3"] },
-      { name: "#🩷", keywords: ["핑", "분홍", "3"] },
-      { name: "#🤎", keywords: ["갈", "4"] },
-      { name: "#💚", keywords: ["초", "5"] }
+      { name: "#🩷", keywords: ["핑", "분홍", "4"] },
+      { name: "#🤎", keywords: ["갈", "브라운", "5"] },
+      { name: "#💚", keywords: ["초", "그린", "6"] }
     ]
   },
   4: {
