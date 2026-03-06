@@ -72,15 +72,13 @@ const WEEKLY_CONFIG = {
   },
   4: {
     label: "4주차 (3/6~12)",
-    question: "Q. 이번 앨범 최애 수록곡 예상!",
+    question: "Q. 이번 앨범 최애 수록곡은?",
     start: "2026-03-06", end: "2026-03-12",
     options: [
-      { name: "TOUGH LOVE", keywords: ["TOUGH", "터프", "타프랍", "1"] },
-      { name: "X, Oh Why?", keywords: ["Why", "와이", "2"] },
-      { name: "Lie", keywords: ["Lie", "라이", "거짓말", "3"] },
-      { name: "Flex on me", keywords: ["Flex", "플렉스", "4"] },
-      { name: "Dot dot dot(…)", keywords: ["Dot", "닷", "점", "5"] },
-      { name: "???(추후수정)", keywords: ["6"] }
+      { name: "Dot dot dot(...)", keywords: ["Dot", "dot", "닷", "1"] },
+      { name: "Flex on me", keywords: ["플", "Flex", "flex", "2"] },
+      { name: "Lie", keywords: ["Lie", "lie", "라이", "거짓말", "3"] },
+      { name: "X, Oh Why?", keywords: ["X", "x", "와이", "엑", "4"] }
     ]
   }
 };
