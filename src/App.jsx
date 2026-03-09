@@ -236,7 +236,13 @@ export default function FundraisingApp() {
       return { name: opt.name, value: amt, percent: pct, color: colors[idx % colors.length] };
     });
 
-    const cumulativeTxs = transactions.filter(t => t.week > 0 && t.week <= currentWeek);
+    // 누적 금액을 3월 9일 13시 이후 데이터로 필터링
+    const cumulativeTxs = transactions.filter(t => {
+      const txDateTime = t.date + "T" + t.time;
+      const targetDateTime = "2026-03-09T13:00:00";
+      return t.week > 0 && t.week <= currentWeek && txDateTime >= targetDateTime;
+    });
+    
     const cumulativeTotal = cumulativeTxs.reduce((sum, t) => sum + t.amount, 0);
     const goalPercent = Math.min(100, (cumulativeTotal / GOAL_AMOUNT) * 100).toFixed(1);
 
