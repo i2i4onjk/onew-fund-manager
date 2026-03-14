@@ -245,8 +245,8 @@ export default function FundraisingApp() {
       const remainingPct = GOAL_AMOUNT > 0 ? ((remaining / GOAL_AMOUNT) * 100).toFixed(1) : 0;
 
       const chartData = [
-        { name: "달성액", value: achieved, percent: achievedPct, color: "#D5A2A1" },
-        { name: "남은 금액", value: remaining, percent: remainingPct, color: "#E5E7EB" } // 회색
+        { name: "", value: achieved, percent: achievedPct, color: "#D5A2A1" },
+        { name: "", value: remaining, percent: remainingPct, color: "#E5E7EB" } // 회색
       ];
 
       return { weekTotal: achieved, validTotal: GOAL_AMOUNT, invalidSum: 0, chartData, cumulativeTotal, goalPercent };
