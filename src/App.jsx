@@ -82,7 +82,7 @@ const WEEKLY_CONFIG = {
     ]
   },
   5: {
-    label: "",
+    label: "", // 5주차는 레이블 제거
     question: "🎯 1000만 원 목표 모금액 달성률",
     start: "2026-03-13", end: "2026-12-31",
     options: [] // 5주차는 목표 달성률 전용이므로 비워둡니다
@@ -245,8 +245,8 @@ export default function FundraisingApp() {
       const remainingPct = GOAL_AMOUNT > 0 ? ((remaining / GOAL_AMOUNT) * 100).toFixed(1) : 0;
 
       const chartData = [
-        { name: "", value: achieved, percent: achievedPct, color: "#D5A2A1" },
-        { name: "", value: remaining, percent: remainingPct, color: "#E5E7EB" } // 회색
+        { name: "달성액", value: achieved, percent: achievedPct, color: "#D5A2A1" },
+        { name: "남은 금액", value: remaining, percent: remainingPct, color: "#E5E7EB" } // 회색
       ];
 
       return { weekTotal: achieved, validTotal: GOAL_AMOUNT, invalidSum: 0, chartData, cumulativeTotal, goalPercent };
@@ -346,8 +346,8 @@ export default function FundraisingApp() {
       const labelX = Math.cos(midAngle) * 0.72; const labelY = Math.sin(midAngle) * 0.72;
       acc += pct / 100;
 
-      // [복구] 5% 이상일 때만 이름 표시
-      const showLabel = pct > 5;
+      // [수정] 5주차일 때는 차트 내 텍스트 미출력
+      const showLabel = pct > 5 && currentWeek !== 5;
 
       return (
         <g key={idx}>
@@ -409,7 +409,10 @@ export default function FundraisingApp() {
 
             <div className="bg-white border-2 border-[#86A5DC]/20 rounded-3xl p-5 relative overflow-hidden shadow-sm mb-6">
               <div className="text-center mb-3">
-                <span className="inline-block px-2 py-0.5 rounded bg-[#86A5DC]/10 text-[#86A5DC] text-[10px] font-bold mb-1">{WEEKLY_CONFIG[currentWeek].label}</span>
+                {/* 5주차에는 레이블 숨김 처리 */}
+                {WEEKLY_CONFIG[currentWeek].label && (
+                  <span className="inline-block px-2 py-0.5 rounded bg-[#86A5DC]/10 text-[#86A5DC] text-[10px] font-bold mb-1">{WEEKLY_CONFIG[currentWeek].label}</span>
+                )}
                 <h2 className="text-base font-bold text-gray-900">{WEEKLY_CONFIG[currentWeek].question}</h2>
               </div>
 
@@ -417,38 +420,47 @@ export default function FundraisingApp() {
                 {stats.validTotal > 0 ? (
                   <div className="relative w-48 h-48">
                     <svg viewBox="-1 -1 2 2" className="transform -rotate-90 w-full h-full">{renderPieChart()}</svg>
-                    <div className="absolute inset-0 m-auto w-24 h-24 bg-white rounded-full flex flex-col items-center justify-center shadow-inner z-10">
-                      <span className="text-[9px] text-gray-400 font-bold">{isGraphOnly ? "투표 마감까지" : "이번주 모금"}</span>
-                      {isGraphOnly ? <span className="text-sm font-black text-[#D5A2A1]">{dDayText}</span> : <span className="text-sm font-black text-gray-800">{formatNum(stats.weekTotal)}</span>}
-                    </div>
+                    {/* 5주차일 경우 가운데 구멍(도넛차트 속성)을 막아 꽉 찬 그래프로 표시 */}
+                    {currentWeek !== 5 && (
+                      <div className="absolute inset-0 m-auto w-24 h-24 bg-white rounded-full flex flex-col items-center justify-center shadow-inner z-10">
+                        <span className="text-[9px] text-gray-400 font-bold">{isGraphOnly ? "투표 마감까지" : "이번주 모금"}</span>
+                        {isGraphOnly ? <span className="text-sm font-black text-[#D5A2A1]">{dDayText}</span> : <span className="text-sm font-black text-gray-800">{formatNum(stats.weekTotal)}</span>}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="w-48 h-48 rounded-full bg-gray-100 flex flex-col items-center justify-center text-gray-400 text-xs"><p>데이터 없음</p></div>
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-2 mb-3">
-                {stats.chartData.map((item, idx) => (
-                  <div key={idx} className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg">
-                    <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{backgroundColor: item.color}} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex justify-between items-center">
-                        <span className="text-[10px] text-gray-600 truncate font-bold">{item.name}</span>
-                        <span className="text-[10px] font-black text-[#86A5DC]">{item.percent}%</span>
+              {/* 5주차가 아닐 때만 하단 범주 렌더링 */}
+              {currentWeek !== 5 && (
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  {stats.chartData.map((item, idx) => (
+                    <div key={idx} className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg">
+                      <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{backgroundColor: item.color}} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] text-gray-600 truncate font-bold">{item.name}</span>
+                          <span className="text-[10px] font-black text-[#86A5DC]">{item.percent}%</span>
+                        </div>
+                        {!isGraphOnly && <p className="text-[9px] text-gray-400 text-right">{formatNum(item.value)}원</p>}
                       </div>
-                      {!isGraphOnly && <p className="text-[9px] text-gray-400 text-right">{formatNum(item.value)}원</p>}
                     </div>
-                  </div>
-                ))}
-              </div>
-
-              {isGraphOnly ? (
-                <div className="text-right text-[9px] text-gray-400 mb-3 leading-tight opacity-80 font-medium">
-                  * PayPal 투표액은 고정환율로 계산하여 반영됩니다.<br/>
-                  * 성함 등 항목 분류가 불가능한 무효표는 투표 집계에서 제외됩니다.
+                  ))}
                 </div>
-              ) : (
-                <div className="text-right text-[10px] text-gray-400 mb-3">* 무효표/기타: {formatNum(stats.invalidSum)}원 (집계 제외)</div>
+              )}
+
+              {/* 5주차가 아닐 때만 하단 별표(*) 안내 텍스트 렌더링 */}
+              {currentWeek !== 5 && (
+                isGraphOnly ? (
+                  <div className="text-right text-[9px] text-gray-400 mb-3 leading-tight opacity-80 font-medium">
+                    * PayPal 투표액은 고정환율로 계산하여 반영됩니다.<br/>
+                    * 성함 등 항목 분류가 불가능한 무효표는 투표 집계에서 제외됩니다.
+                  </div>
+                ) : (
+                  <div className="text-right text-[10px] text-gray-400 mb-3">* 무효표/기타: {formatNum(stats.invalidSum)}원 (집계 제외)</div>
+                )
               )}
 
               <div className="border-t-2 border-dashed border-gray-100 pt-2">
