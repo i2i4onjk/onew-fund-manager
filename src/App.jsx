@@ -80,6 +80,12 @@ const WEEKLY_CONFIG = {
       { name: "Lie", keywords: ["Lie", "lie", "라이", "거짓말", "3"] },
       { name: "X, Oh Why?", keywords: ["X", "x", "와이", "엑", "4"] }
     ]
+  },
+  5: {
+    label: "5주차 (3/9 13시 이후~)",
+    question: "🎯 1000만 원 목표 모금액 달성률",
+    start: "2026-03-13", end: "2026-12-31",
+    options: [] // 5주차는 목표 달성률 전용이므로 비워둡니다
   }
 };
 
@@ -134,6 +140,7 @@ export default function FundraisingApp() {
 
   const getOptionByName = (week, text) => {
     if (!WEEKLY_CONFIG[week]) return "범위외";
+    if (!WEEKLY_CONFIG[week].options || WEEKLY_CONFIG[week].options.length === 0) return "목표달성집계";
     for (const opt of WEEKLY_CONFIG[week].options) {
       if (opt.keywords.some(k => text.includes(k))) return opt.name;
     }
@@ -215,6 +222,37 @@ export default function FundraisingApp() {
 
   // 통계 계산 (amount는 항상 원화이므로 기존 로직 유지)
   const stats = useMemo(() => {
+    const targetDateTime = "2026-03-09T13:00:00";
+    
+    // 누적 금액을 3월 9일 13시 이후 데이터로 필터링
+    const cumulativeTxs = transactions.filter(t => {
+      const txDateTime = t.date + "T" + t.time;
+      if (currentWeek === 5) {
+          // 5주차는 3월 9일 13시 이후의 모든 데이터를 집계
+          return txDateTime >= targetDateTime;
+      }
+      return t.week > 0 && t.week <= currentWeek && txDateTime >= targetDateTime;
+    });
+    
+    const cumulativeTotal = cumulativeTxs.reduce((sum, t) => sum + t.amount, 0);
+    const goalPercent = Math.min(100, (cumulativeTotal / GOAL_AMOUNT) * 100).toFixed(1);
+
+    // [추가] 5주차는 1000만원 달성률 전용 원그래프 출력
+    if (currentWeek === 5) {
+      const achieved = cumulativeTotal;
+      const remaining = Math.max(0, GOAL_AMOUNT - achieved);
+      const achievedPct = GOAL_AMOUNT > 0 ? ((achieved / GOAL_AMOUNT) * 100).toFixed(1) : 0;
+      const remainingPct = GOAL_AMOUNT > 0 ? ((remaining / GOAL_AMOUNT) * 100).toFixed(1) : 0;
+
+      const chartData = [
+        { name: "달성액", value: achieved, percent: achievedPct, color: "#D5A2A1" },
+        { name: "남은 금액", value: remaining, percent: remainingPct, color: "#E5E7EB" } // 회색
+      ];
+
+      return { weekTotal: achieved, validTotal: GOAL_AMOUNT, invalidSum: 0, chartData, cumulativeTotal, goalPercent };
+    }
+
+    // 기존 1~4주차 투표 결과 집계 로직
     const weekTxs = transactions.filter(t => t.week === currentWeek);
     const optionSums = {};
     WEEKLY_CONFIG[currentWeek].options.forEach(opt => optionSums[opt.name] = 0);
@@ -235,16 +273,6 @@ export default function FundraisingApp() {
       const colors = ["#86A5DC", "#D5A2A1", "#A6C1EE", "#E8C5C4", "#B0C4DE", "#F4C2C2"];
       return { name: opt.name, value: amt, percent: pct, color: colors[idx % colors.length] };
     });
-
-    // 누적 금액을 3월 9일 13시 이후 데이터로 필터링
-    const cumulativeTxs = transactions.filter(t => {
-      const txDateTime = t.date + "T" + t.time;
-      const targetDateTime = "2026-03-09T13:00:00";
-      return t.week > 0 && t.week <= currentWeek && txDateTime >= targetDateTime;
-    });
-    
-    const cumulativeTotal = cumulativeTxs.reduce((sum, t) => sum + t.amount, 0);
-    const goalPercent = Math.min(100, (cumulativeTotal / GOAL_AMOUNT) * 100).toFixed(1);
 
     return { weekTotal, validTotal, invalidSum, chartData, cumulativeTotal, goalPercent };
   }, [transactions, currentWeek]);
@@ -374,7 +402,7 @@ export default function FundraisingApp() {
         {(activeTab === 'dashboard' || activeTab === 'graph') && (
           <div className="flex-1 px-6 pb-10 overflow-y-auto">
             <div className="flex justify-between items-center my-4 overflow-x-auto">
-              {[1, 2, 3, 4].map(w => (
+              {[1, 2, 3, 4, 5].map(w => (
                 <button key={w} onClick={() => setCurrentWeek(w)} className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap mr-2 transition-colors ${currentWeek === w ? 'bg-[#D5A2A1] text-white' : 'bg-gray-100 text-gray-400'}`}>{w}주차</button>
               ))}
             </div>
