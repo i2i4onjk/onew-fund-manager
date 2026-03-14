@@ -83,7 +83,7 @@ const WEEKLY_CONFIG = {
   },
   5: {
     label: "", // 5주차는 레이블 제거
-    question: "🎯 목표 모금액 달성률",
+    question: "🩷목표 모금액 달성률💚",
     start: "2026-03-13", end: "2026-12-31",
     options: [] // 5주차는 목표 달성률 전용이므로 비워둡니다
   }
