@@ -87,9 +87,9 @@ const WEEKLY_CONFIG = {
     start: "2026-03-13", end: "2026-12-31", // 현재 입금건들이 이쪽으로 배정되도록 설정
     options: [
       { name: "엠카", keywords: ["엠카", "엠", "m", "1"] },
-      { name: "뮤뱅", keywords: ["뮤뱅", "뮤", "2"] },
-      { name: "음중", keywords: ["음중", "음", "3"] },
-      { name: "인가", keywords: ["인가", "인", "4"] }
+      { name: "뮤뱅", keywords: ["뮤뱅", "뮤직", "2"] },
+      { name: "음중", keywords: ["음중", "음악", "3"] },
+      { name: "인가", keywords: ["인가", "인기", "4"] }
     ]
   },
   5: {
