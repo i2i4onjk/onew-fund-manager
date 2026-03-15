@@ -86,10 +86,10 @@ const WEEKLY_CONFIG = {
     question: "Q. 이번 앨범 최애 엔딩요정/무대는?",
     start: "2026-03-13", end: "2026-12-31", // 현재 입금건들이 이쪽으로 배정되도록 설정
     options: [
-      { name: "엠카", keywords: ["엠카", "엠", "m", "1"] },
-      { name: "뮤뱅", keywords: ["뮤뱅", "뮤직", "2"] },
-      { name: "음중", keywords: ["음중", "음악", "3"] },
-      { name: "인가", keywords: ["인가", "인기", "4"] }
+      { name: "1. 엠카", keywords: ["엠카", "엠", "m", "1"] },
+      { name: "2. 뮤뱅", keywords: ["뮤뱅", "뮤직", "2"] },
+      { name: "3. 음중", keywords: ["음중", "음악", "3"] },
+      { name: "4. 인가", keywords: ["인가", "인기", "4"] }
     ]
   },
   5: {
@@ -354,6 +354,9 @@ export default function FundraisingApp() {
 
       // 5주차일 때는 차트 내 텍스트 미출력
       const showLabel = pct > 5 && currentWeek !== 5;
+      
+      // [수정] 그래프 탭일 경우 텍스트에서 '숫자. ' 제거
+      const displayName = isGraphOnly ? item.name.replace(/^\d+\.\s*/, '') : item.name;
 
       return (
         <g key={idx}>
@@ -369,7 +372,7 @@ export default function FundraisingApp() {
               transform={`rotate(90 ${labelX} ${labelY})`} 
               style={{ textShadow: "0px 1px 2px rgba(0,0,0,0.5)", pointerEvents: 'none' }}
             >
-              {item.name}
+              {displayName}
             </text>
           )}
         </g>
@@ -452,18 +455,23 @@ export default function FundraisingApp() {
               {/* 5주차가 아닐 때만 하단 범주 렌더링 */}
               {currentWeek !== 5 && (
                 <div className="grid grid-cols-2 gap-2 mb-3">
-                  {stats.chartData.map((item, idx) => (
-                    <div key={idx} className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg">
-                      <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{backgroundColor: item.color}} />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex justify-between items-center">
-                          <span className="text-[10px] text-gray-600 truncate font-bold">{item.name}</span>
-                          <span className="text-[10px] font-black text-[#86A5DC]">{item.percent}%</span>
+                  {stats.chartData.map((item, idx) => {
+                    // [수정] 그래프 탭일 경우 텍스트에서 '숫자. ' 제거
+                    const displayName = isGraphOnly ? item.name.replace(/^\d+\.\s*/, '') : item.name;
+
+                    return (
+                      <div key={idx} className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg">
+                        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{backgroundColor: item.color}} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[10px] text-gray-600 truncate font-bold">{displayName}</span>
+                            <span className="text-[10px] font-black text-[#86A5DC]">{item.percent}%</span>
+                          </div>
+                          {!isGraphOnly && <p className="text-[9px] text-gray-400 text-right">{formatNum(item.value)}원</p>}
                         </div>
-                        {!isGraphOnly && <p className="text-[9px] text-gray-400 text-right">{formatNum(item.value)}원</p>}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 
