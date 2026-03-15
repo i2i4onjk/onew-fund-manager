@@ -352,10 +352,10 @@ export default function FundraisingApp() {
       const labelX = Math.cos(midAngle) * 0.72; const labelY = Math.sin(midAngle) * 0.72;
       acc += pct / 100;
 
-      // 5주차일 때는 차트 내 텍스트 미출력
-      const showLabel = pct > 5 && currentWeek !== 5;
+      // [수정] 5주차는 텍스트 미출력. 6주차 그래프 탭일 경우 비율에 상관없이 출력, 그 외엔 5% 초과일 때만 출력
+      const showLabel = currentWeek === 5 ? false : (currentWeek === 6 && isGraphOnly ? true : pct > 5);
       
-      // [수정] 그래프 탭일 경우 텍스트에서 '숫자. ' 제거
+      // 그래프 탭일 경우 텍스트에서 '숫자. ' 제거
       const displayName = isGraphOnly ? item.name.replace(/^\d+\.\s*/, '') : item.name;
 
       return (
@@ -439,8 +439,8 @@ export default function FundraisingApp() {
                 {stats.validTotal > 0 ? (
                   <div className="relative w-48 h-48">
                     <svg viewBox="-1 -1 2 2" className="transform -rotate-90 w-full h-full">{renderPieChart()}</svg>
-                    {/* 5주차일 경우 가운데 구멍(도넛차트 속성)을 막아 꽉 찬 그래프로 표시 */}
-                    {currentWeek !== 5 && (
+                    {/* [수정] 5주차 또는 (6주차 그래프 탭)일 경우 가운데 구멍(도넛차트 속성)을 막아 꽉 찬 그래프로 표시 */}
+                    {currentWeek !== 5 && !(currentWeek === 6 && isGraphOnly) && (
                       <div className="absolute inset-0 m-auto w-24 h-24 bg-white rounded-full flex flex-col items-center justify-center shadow-inner z-10">
                         <span className="text-[9px] text-gray-400 font-bold">{isGraphOnly ? "투표 마감까지" : "이번주 모금"}</span>
                         {isGraphOnly ? <span className="text-sm font-black text-[#D5A2A1]">{dDayText}</span> : <span className="text-sm font-black text-gray-800">{formatNum(stats.weekTotal)}</span>}
@@ -456,7 +456,7 @@ export default function FundraisingApp() {
               {currentWeek !== 5 && (
                 <div className="grid grid-cols-2 gap-2 mb-3">
                   {stats.chartData.map((item, idx) => {
-                    // [수정] 그래프 탭일 경우 텍스트에서 '숫자. ' 제거
+                    // 그래프 탭일 경우 텍스트에서 '숫자. ' 제거
                     const displayName = isGraphOnly ? item.name.replace(/^\d+\.\s*/, '') : item.name;
 
                     return (
@@ -475,28 +475,33 @@ export default function FundraisingApp() {
                 </div>
               )}
 
-              {/* 5주차가 아닐 때만 하단 별표(*) 안내 텍스트 렌더링 */}
+              {/* [수정] 5주차가 아닐 때만 렌더링. 단, 6주차 그래프 탭에서는 하단 안내 텍스트 숨김 */}
               {currentWeek !== 5 && (
                 isGraphOnly ? (
-                  <div className="text-right text-[9px] text-gray-400 mb-3 leading-tight opacity-80 font-medium">
-                    * PayPal 투표액은 고정환율로 계산하여 반영됩니다.<br/>
-                    * 성함 등 항목 분류가 불가능한 무효표는 투표 집계에서 제외됩니다.
-                  </div>
+                  currentWeek !== 6 && (
+                    <div className="text-right text-[9px] text-gray-400 mb-3 leading-tight opacity-80 font-medium">
+                      * PayPal 투표액은 고정환율로 계산하여 반영됩니다.<br/>
+                      * 성함 등 항목 분류가 불가능한 무효표는 투표 집계에서 제외됩니다.
+                    </div>
+                  )
                 ) : (
                   <div className="text-right text-[10px] text-gray-400 mb-3">* 무효표/기타: {formatNum(stats.invalidSum)}원 (집계 제외)</div>
                 )
               )}
 
-              <div className="border-t-2 border-dashed border-gray-100 pt-2">
-                <div className="flex justify-between items-end mb-2">
-                  <span className="text-xs font-bold text-[#D5A2A1]">TOTAL PROGRESS</span>
-                  <span className="text-xl font-black text-[#D5A2A1]">{stats.goalPercent}%</span>
+              {/* [수정] 6주차 그래프 탭에서는 TOTAL PROGRESS 숨김 */}
+              {!(currentWeek === 6 && isGraphOnly) && (
+                <div className="border-t-2 border-dashed border-gray-100 pt-2">
+                  <div className="flex justify-between items-end mb-2">
+                    <span className="text-xs font-bold text-[#D5A2A1]">TOTAL PROGRESS</span>
+                    <span className="text-xl font-black text-[#D5A2A1]">{stats.goalPercent}%</span>
+                  </div>
+                  <div className="h-3 bg-gray-100 rounded-full overflow-hidden relative">
+                    <div className="h-full bg-gradient-to-r from-[#D5A2A1] to-[#E8C5C4] relative" style={{ width: `${stats.goalPercent}%` }}></div>
+                  </div>
+                  {!isGraphOnly && <div className="flex justify-between mt-1 text-[9px] font-bold text-gray-400"><span>누적 {formatNum(stats.cumulativeTotal)}원</span><span>목표 2,580만원</span></div>}
                 </div>
-                <div className="h-3 bg-gray-100 rounded-full overflow-hidden relative">
-                  <div className="h-full bg-gradient-to-r from-[#D5A2A1] to-[#E8C5C4] relative" style={{ width: `${stats.goalPercent}%` }}></div>
-                </div>
-                {!isGraphOnly && <div className="flex justify-between mt-1 text-[9px] font-bold text-gray-400"><span>누적 {formatNum(stats.cumulativeTotal)}원</span><span>목표 2,580만원</span></div>}
-              </div>
+              )}
             </div>
             
           </div>
