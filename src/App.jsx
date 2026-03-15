@@ -24,7 +24,7 @@ const firebaseConfig = {
 
 // [💰 환율 설정] 1달러당 원화 금액 (필요시 수정하세요)
 const EXCHANGE_RATE = 1450; 
-const GOAL_AMOUNT = 10000000; 
+const GOAL_AMOUNT = 25800000; // 목표 모금액 수정
 
 // Firebase 초기화
 let db;
@@ -81,11 +81,22 @@ const WEEKLY_CONFIG = {
       { name: "X, Oh Why?", keywords: ["X", "x", "와이", "엑", "4"] }
     ]
   },
+  6: {
+    label: "", // 레이블 제거
+    question: "Q. 이번 앨범 최애 엔딩요정/무대는?",
+    start: "2026-03-13", end: "2026-12-31", // 현재 입금건들이 이쪽으로 배정되도록 설정
+    options: [
+      { name: "1. 엠카", keywords: ["엠카", "엠", "m", "1"] },
+      { name: "2. 뮤뱅", keywords: ["뮤뱅", "뮤", "2"] },
+      { name: "3. 음중", keywords: ["음중", "음", "3"] },
+      { name: "4. 인가", keywords: ["인가", "인", "4"] }
+    ]
+  },
   5: {
-    label: "", // 5주차는 레이블 제거
+    label: "", 
     question: "🩷 목표 모금액 달성률 💚",
-    start: "2026-03-13", end: "2026-12-31",
-    options: [] // 5주차는 목표 달성률 전용이므로 비워둡니다
+    start: "2099-01-01", end: "2099-12-31", // 자동 맵핑되지 않도록 설정 (순수 누적 집계용)
+    options: [] 
   }
 };
 
@@ -105,7 +116,7 @@ export default function FundraisingApp() {
   const [second, setSecond] = useState('00');
   const [inputName, setInputName] = useState('');
   const [inputAmount, setInputAmount] = useState('');
-  const [inputMemo, setInputMemo] = useState(''); // [추가] PayPal용 메모
+  const [inputMemo, setInputMemo] = useState(''); 
 
   const hours = genTimeOpts(24);
   const minutes = genTimeOpts(60);
@@ -147,12 +158,12 @@ export default function FundraisingApp() {
     return "무효표";
   };
 
-  // [DB] 데이터 저장 (로직 수정됨)
+  // [DB] 데이터 저장
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!inputName || !inputAmount || !inputDate) return;
 
-    const rawAmount = parseFloat(inputAmount); // PayPal은 소수점이 있을 수 있음
+    const rawAmount = parseFloat(inputAmount); 
     const week = getWeekByDate(inputDate);
     
     // 탭에 따라 결제 정보 처리
@@ -160,13 +171,11 @@ export default function FundraisingApp() {
     const paymentType = isPayPal ? 'PayPal' : '계좌이체';
     const finalTime = `${hour}:${minute}:${second}`;
 
-    // 1. 투표 집계 대상 텍스트 결정 (페이팔은 메모, 계좌는 입금자명)
+    // 1. 투표 집계 대상 텍스트 결정
     const targetTextForOption = isPayPal ? inputMemo : inputName;
     let option = week > 0 ? getOptionByName(week, targetTextForOption) : "범위외";
 
-    // 2. 금액 계산 (페이팔은 환율 적용)
-    // originalAmount: 입력한 원본 금액 (원화 또는 달러)
-    // amount: 통계 집계용 원화 환산 금액
+    // 2. 금액 계산
     const convertedAmount = isPayPal ? Math.round(rawAmount * EXCHANGE_RATE) : rawAmount;
 
     const txData = {
@@ -174,9 +183,9 @@ export default function FundraisingApp() {
       date: inputDate,
       time: finalTime,
       name: inputName,
-      memo: isPayPal ? inputMemo : "", // 페이팔만 메모 저장
-      originalAmount: rawAmount,       // 입력한 값 ($ or ₩)
-      amount: convertedAmount,         // 환산된 원화 (통계용)
+      memo: isPayPal ? inputMemo : "", 
+      originalAmount: rawAmount,       
+      amount: convertedAmount,         
       week: week,
       option: option
     };
@@ -206,7 +215,6 @@ export default function FundraisingApp() {
     setHour(h || '00'); setMinute(m || '00'); setSecond(s || '00');
     setInputName(t.name); 
     
-    // 수정 시 원래 입력했던 금액(originalAmount)을 불러옴
     setInputAmount(t.originalAmount ? t.originalAmount.toString() : t.amount.toString());
     setInputMemo(t.memo || "");
 
@@ -220,7 +228,7 @@ export default function FundraisingApp() {
     setInputMemo('');
   };
 
-  // 통계 계산 (amount는 항상 원화이므로 기존 로직 유지)
+  // 통계 계산
   const stats = useMemo(() => {
     const targetDateTime = "2026-03-09T13:00:00";
     
@@ -231,13 +239,14 @@ export default function FundraisingApp() {
           // 5주차는 3월 9일 13시 이후의 모든 데이터를 집계
           return txDateTime >= targetDateTime;
       }
+      // 6주차(최애무대)에서도 하단 누적액이 정상 표기되도록 조건 적용
       return t.week > 0 && t.week <= currentWeek && txDateTime >= targetDateTime;
     });
     
     const cumulativeTotal = cumulativeTxs.reduce((sum, t) => sum + t.amount, 0);
     const goalPercent = Math.min(100, (cumulativeTotal / GOAL_AMOUNT) * 100).toFixed(1);
 
-    // [추가] 5주차는 1000만원 달성률 전용 원그래프 출력
+    // 5주차는 목표달성률 전용 원그래프 출력
     if (currentWeek === 5) {
       const achieved = cumulativeTotal;
       const remaining = Math.max(0, GOAL_AMOUNT - achieved);
@@ -246,20 +255,19 @@ export default function FundraisingApp() {
 
       const chartData = [
         { name: "달성액", value: achieved, percent: achievedPct, color: "#D5A2A1" },
-        { name: "남은 금액", value: remaining, percent: remainingPct, color: "#E5E7EB" } // 회색
+        { name: "남은 금액", value: remaining, percent: remainingPct, color: "#E5E7EB" } 
       ];
 
       return { weekTotal: achieved, validTotal: GOAL_AMOUNT, invalidSum: 0, chartData, cumulativeTotal, goalPercent };
     }
 
-    // 기존 1~4주차 투표 결과 집계 로직
+    // 기존 1~4주차 & 신규 6주차 투표 결과 집계 로직
     const weekTxs = transactions.filter(t => t.week === currentWeek);
     const optionSums = {};
     WEEKLY_CONFIG[currentWeek].options.forEach(opt => optionSums[opt.name] = 0);
     let invalidSum = 0; let weekTotal = 0;
 
     weekTxs.forEach(t => {
-      // t.amount는 항상 원화 환산액임
       weekTotal += t.amount;
       if (t.option === "무효표") invalidSum += t.amount;
       else if (optionSums[t.option] !== undefined) optionSums[t.option] += t.amount;
@@ -277,7 +285,7 @@ export default function FundraisingApp() {
     return { weekTotal, validTotal, invalidSum, chartData, cumulativeTotal, goalPercent };
   }, [transactions, currentWeek]);
 
-  // [수정] 엑셀 다운로드 (시트 분리 로직)
+  // 엑셀 다운로드
   const downloadExcel = () => {
     if (typeof window.XLSX === 'undefined') {
       alert("엑셀 라이브러리 로드 실패. 페이지를 새로고침 해주세요.");
@@ -286,7 +294,6 @@ export default function FundraisingApp() {
     const XLSX = window.XLSX;
     const wb = XLSX.utils.book_new();
 
-    // 1. 원화 시트 데이터
     const bankData = transactions
       .filter(t => t.type === '계좌이체')
       .map(t => ({
@@ -294,13 +301,12 @@ export default function FundraisingApp() {
         "시간": t.time,
         "입금자명": t.name,
         "금액(원)": t.amount,
-        "주차": t.week > 0 ? `${t.week}주차` : "범위외",
+        "주차": t.week > 0 ? (t.week === 6 ? `최애무대` : `${t.week}주차`) : "범위외",
         "분류": t.option
       }));
     const wsBank = XLSX.utils.json_to_sheet(bankData);
     XLSX.utils.book_append_sheet(wb, wsBank, "원화 입금(계좌)");
 
-    // 2. PayPal 시트 데이터
     const paypalData = transactions
       .filter(t => t.type === 'PayPal')
       .map(t => ({
@@ -311,7 +317,7 @@ export default function FundraisingApp() {
         "입금액($)": t.originalAmount,
         "환산액(원)": t.amount,
         "적용환율": EXCHANGE_RATE,
-        "주차": t.week > 0 ? `${t.week}주차` : "범위외",
+        "주차": t.week > 0 ? (t.week === 6 ? `최애무대` : `${t.week}주차`) : "범위외",
         "분류": t.option
       }));
     const wsPaypal = XLSX.utils.json_to_sheet(paypalData);
@@ -346,7 +352,7 @@ export default function FundraisingApp() {
       const labelX = Math.cos(midAngle) * 0.72; const labelY = Math.sin(midAngle) * 0.72;
       acc += pct / 100;
 
-      // [수정] 5주차일 때는 차트 내 텍스트 미출력
+      // 5주차일 때는 차트 내 텍스트 미출력
       const showLabel = pct > 5 && currentWeek !== 5;
 
       return (
@@ -377,6 +383,16 @@ export default function FundraisingApp() {
     return transactions.filter(t => t.type === type);
   }, [activeTab, transactions]);
 
+  // 표시할 탭 배열 (6주차: 새 앙케이트, 5주차: 달성률)
+  const TABS_CONFIG = [
+    { id: 1, label: '1주차' },
+    { id: 2, label: '2주차' },
+    { id: 3, label: '3주차' },
+    { id: 4, label: '4주차' },
+    { id: 6, label: '최애무대' },
+    { id: 5, label: '목표달성' }
+  ];
+
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center py-0 sm:py-10 font-sans text-gray-800">
       <style>{`
@@ -402,14 +418,14 @@ export default function FundraisingApp() {
         {(activeTab === 'dashboard' || activeTab === 'graph') && (
           <div className="flex-1 px-6 pb-10 overflow-y-auto">
             <div className="flex justify-between items-center my-4 overflow-x-auto">
-              {[1, 2, 3, 4, 5].map(w => (
-                <button key={w} onClick={() => setCurrentWeek(w)} className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap mr-2 transition-colors ${currentWeek === w ? 'bg-[#D5A2A1] text-white' : 'bg-gray-100 text-gray-400'}`}>{w}주차</button>
+              {TABS_CONFIG.map(tab => (
+                <button key={tab.id} onClick={() => setCurrentWeek(tab.id)} className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap mr-2 transition-colors ${currentWeek === tab.id ? 'bg-[#D5A2A1] text-white' : 'bg-gray-100 text-gray-400'}`}>{tab.label}</button>
               ))}
             </div>
 
             <div className="bg-white border-2 border-[#86A5DC]/20 rounded-3xl p-5 relative overflow-hidden shadow-sm mb-6">
               <div className="text-center mb-3">
-                {/* 5주차에는 레이블 숨김 처리 */}
+                {/* 레이블 숨김 처리 */}
                 {WEEKLY_CONFIG[currentWeek].label && (
                   <span className="inline-block px-2 py-0.5 rounded bg-[#86A5DC]/10 text-[#86A5DC] text-[10px] font-bold mb-1">{WEEKLY_CONFIG[currentWeek].label}</span>
                 )}
@@ -471,11 +487,10 @@ export default function FundraisingApp() {
                 <div className="h-3 bg-gray-100 rounded-full overflow-hidden relative">
                   <div className="h-full bg-gradient-to-r from-[#D5A2A1] to-[#E8C5C4] relative" style={{ width: `${stats.goalPercent}%` }}></div>
                 </div>
-                {!isGraphOnly && <div className="flex justify-between mt-1 text-[9px] font-bold text-gray-400"><span>누적 {formatNum(stats.cumulativeTotal)}원</span><span>목표 1,000만원</span></div>}
+                {!isGraphOnly && <div className="flex justify-between mt-1 text-[9px] font-bold text-gray-400"><span>누적 {formatNum(stats.cumulativeTotal)}원</span><span>목표 2,580만원</span></div>}
               </div>
             </div>
             
-            {/* 엑셀 다운로드는 '원화' 탭으로 이동했습니다 (사용자 요청) */}
           </div>
         )}
 
@@ -509,7 +524,6 @@ export default function FundraisingApp() {
                  <input type="text" required value={inputName} onChange={(e) => setInputName(e.target.value)} placeholder={activeTab === 'paypal' ? "예: JINKI LEE" : "예: 이진기토끼"} className="w-full text-xs p-2 rounded-lg border border-white focus:outline-none focus:border-[#86A5DC] bg-white" />
               </div>
 
-              {/* [추가] PayPal 탭일 때만 메모 입력칸 표시 */}
               {activeTab === 'paypal' && (
                 <div className="mb-2">
                    <label className="text-[9px] text-[#86A5DC] font-bold block mb-1">메모 (투표 키워드 입력)</label>
@@ -560,7 +574,7 @@ export default function FundraisingApp() {
               </table>
             </div>
 
-            {/* 원화 탭 하단 엑셀 다운로드 버튼 (PayPal 탭에서는 안 보임) */}
+            {/* 원화 탭 하단 엑셀 다운로드 버튼 */}
             {activeTab === 'bank' && (
               <div className="mt-4 flex justify-end">
                 <button 
