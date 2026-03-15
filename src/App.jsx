@@ -439,8 +439,8 @@ export default function FundraisingApp() {
                 {stats.validTotal > 0 ? (
                   <div className="relative w-48 h-48">
                     <svg viewBox="-1 -1 2 2" className="transform -rotate-90 w-full h-full">{renderPieChart()}</svg>
-                    {/* [수정] 5주차 또는 (6주차 그래프 탭)일 경우 가운데 구멍(도넛차트 속성)을 막아 꽉 찬 그래프로 표시 */}
-                    {currentWeek !== 5 && !(currentWeek === 6 && isGraphOnly) && (
+                    {/* [수정] 5주차일 때만 꽉 찬 원그래프 유지 (가운데 구멍 막음). 6주차는 다시 도넛 차트(가운데 뚫림)로 표시 */}
+                    {currentWeek !== 5 && (
                       <div className="absolute inset-0 m-auto w-24 h-24 bg-white rounded-full flex flex-col items-center justify-center shadow-inner z-10">
                         <span className="text-[9px] text-gray-400 font-bold">{isGraphOnly ? "투표 마감까지" : "이번주 모금"}</span>
                         {isGraphOnly ? <span className="text-sm font-black text-[#D5A2A1]">{dDayText}</span> : <span className="text-sm font-black text-gray-800">{formatNum(stats.weekTotal)}</span>}
